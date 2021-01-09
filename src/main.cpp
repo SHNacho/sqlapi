@@ -5,10 +5,10 @@
 
 using namespace std;
 
-// Método que borra y crea las tablas, e inserta 10 tuplas en la tabla stock
-void crearBorrarTabla(SAConnection &con, SACommand &cmd){
-
-    cout << "Borrando tablas: " << endl;
+// Método que borra las tablas
+void borrarTablas(SAConnection &con, SACommand &cmd)
+{
+	cout << "Borrando tablas: " << endl;
 
     cmd.setCommandText(
     _TSA("DROP TABLE DETALLE_PEDIDO"));
@@ -22,6 +22,12 @@ void crearBorrarTabla(SAConnection &con, SACommand &cmd){
     _TSA("DROP TABLE PEDIDO"));
     cmd.Execute();
 
+	con.Commit();
+}
+
+// Método crea las tablas, e inserta 10 tuplas en la tabla stock
+void crearTablas(SAConnection &con, SACommand &cmd){ 
+	
     // Crear tablas.
 
     cout << "Creando tabla STOCK: " << endl;
@@ -59,9 +65,12 @@ void crearBorrarTabla(SAConnection &con, SACommand &cmd){
 bool mostrarTablaStock(SACommand &select)
 {
 	cout.setf(ios::fixed);
+	bool salida;
 
     select.setCommandText(_TSA("SELECT * FROM STOCK"));
 	select.Execute();
+	
+	salida = select.isResultSet();
 
 	cout << "| " << setw(9) << "CProducto" << " |" 
 		 <<	"| " << setw(9) << "Cantidad" <<  " |" << endl 
@@ -80,16 +89,19 @@ bool mostrarTablaStock(SACommand &select)
 
 	cout << endl;
 
-	return select.isResultSet();
+	return salida;
 }
 
 // Método que muestra la tabla pedido
 bool mostrarTablaPedido(SACommand &select)
 {
 	cout.setf(ios::fixed);
+	bool salida;
 
     select.setCommandText(_TSA("SELECT * FROM PEDIDO"));
 	select.Execute();
+
+	salida = select.isResultSet();
 	
 	
 	cout << "| " << setw(9) << "CPedido" << " |" 
@@ -108,7 +120,7 @@ bool mostrarTablaPedido(SACommand &select)
 
 	cout << endl;
 
-	return select.isResultSet();
+	return salida;
 }
 
 bool mostrarTablaDetallePedido(SACommand &select)
@@ -153,6 +165,7 @@ int main(int argc, char* argv[])
 
         bool salir = false; 
         int entrada;
+
         while (!salir)
         {
 
@@ -167,8 +180,38 @@ int main(int argc, char* argv[])
 
             switch (entrada){
             case 1:
-                crearBorrarTabla(con, cmd);
-                break;
+				{
+					bool salir_menu_crear = false;
+					
+
+					while(!salir_menu_crear)
+					{
+						cout << endl << "MENU" << endl
+						<< "1  Borrar tablas" << endl
+						<< "2  Crear tablas"  << endl
+						<< "3  Volver"		  <<endl
+						<< endl << "Opcion seleccionada: ";
+
+						cin >> entrada;
+
+						switch (entrada){
+							case 1:
+								borrarTablas(con, cmd);
+								break;
+
+							case 2:
+								crearTablas(con, cmd);
+								break;
+
+							case 3:
+								salir_menu_crear = true;
+								break;
+
+						}// switch menu crear/borrar tablas
+					}// while
+
+					break;
+				}// case 1
 
             case 2:
 				{
@@ -303,9 +346,38 @@ int main(int argc, char* argv[])
 				cout << "TABAL PEDIDO" << endl;
 				if(mostrarTablaPedido(select))
 				{
+					int cantidad,
+						cantidad_stock,
+						cprod;
+
 					cout << endl << "Ingresa el número de pedido que deseas eliminar: ";
 					cin >> entrada;
 					
+					select.setCommandText(_TSA("SELECT * FROM DETALLE_PEDIDO WHERE CPedido = :1"));
+					select << (long)entrada;
+					select.Execute();
+					
+					while(select.FetchNext())
+					{
+						cantidad = select[3].asLong();
+						cprod    = select[1].asLong();
+					}
+					
+
+
+					select.setCommandText("SELECT cantidad FROM STOCK WHERE CProducto = :1");
+					select << (long)cprod;
+					select.Execute();
+
+										
+					while(select.FetchNext())
+						cantidad_stock = select[1].asLong();
+											
+					cmd.setCommandText(_TSA("UPDATE STOCK SET Cantidad = :1 WHERE CProducto = :2"));
+					cmd << (long)(cantidad + cantidad_stock);
+					cmd << (long)cprod;
+					cmd.Execute();
+
 					cmd.setCommandText(
 					_TSA("delete FROM DETALLE_PEDIDO where CPedido = :1"));
 					cmd << (long)entrada;
